@@ -7,4 +7,5 @@ class ProfileDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
+        """Giriş yapmış kullanıcının profilini döner."""
         return self.request.user.profile

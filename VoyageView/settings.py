@@ -32,6 +32,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -41,6 +42,7 @@ INSTALLED_APPS = [
     'backend',
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +90,11 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.OrderingFilter',
+        'rest_framework.filters.SearchFilter',
+    ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 5,  # Sayfa başına gösterilecek yorum sayısı
     
@@ -107,7 +114,6 @@ DATABASES = {
         'PORT': '5432',
     }
 }
-
 
 
 # Password validation
@@ -132,12 +138,11 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = 'tr'  # Türkçe dil kodu
+TIME_ZONE = 'Europe/Istanbul'  # Türkiye saat dilimi
 
 USE_I18N = True
-
+USE_L10N = True  # Yerel tarih/saat biçimi
 USE_TZ = True
 
 
@@ -153,3 +158,34 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+JAZZMIN_SETTINGS = {
+    "site_title": "VoyageView Admin",
+    "site_header": "VoyageView Admin Paneli",
+    "site_brand": "VoyageView",
+    "site_logo": "your_logo_path/logo.png",  # Logo eklemek için bir dosya yolu
+    "welcome_sign": "VoyageView'e Hoş Geldiniz!",
+    "copyright": "VoyageView 2024",
+    "search_model": "backend.Post",  # Arama çubuğu modeli
+    "user_avatar": "profile_image",  # Kullanıcı profil resmi
+    "topmenu_links": [
+        {"name": "Anasayfa", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"name": "VoyageView", "url": "/", "new_window": True},
+    ],
+    "usermenu_links": [
+        {"model": "auth.user"},
+        {"name": "Desteğe Git", "url": "https://support.voyageview.com", "new_window": True},
+    ],
+    "show_sidebar": True,
+    "navigation_expanded": True,
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "backend.Profile": "fas fa-user",
+        "backend.Post": "fas fa-newspaper",
+        "backend.Comment": "fas fa-comments",
+        "backend.Notification": "fas fa-bell",
+        "backend.Report": "fas fa-flag",
+    },
+    "order_with_respect_to": ["auth", "backend", "backend.Post", "backend.Comment"],
+    "language_chooser": True,
+}

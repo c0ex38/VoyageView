@@ -1,27 +1,55 @@
+from django.db.models import Count
 from rest_framework import generics, permissions, status, filters
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
-from backend.models import Post
+from backend.models import Post, Notification, PostMedia, Profile, Tag, validate_video_duration
 from backend.serializers import PostSerializer
-from django.db import models
 from backend.permissions import IsOwner
 
 class PostListCreateView(generics.ListCreateAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwner]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['category']  # Kategoriye göre filtreleme
-    search_fields = ['title', 'description', 'location']  # Arama yapılacak alanlar
-    ordering_fields = ['likes_count', 'created_at']  # Sıralanacak alanlar
-    ordering = ['-created_at']  # Varsayılan sıralama
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['title', 'description', 'location', 'tags__name']  # tags ekledik
+    ordering_fields = ['likes_count', 'created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        return queryset.annotate(likes_count=models.Count('likes'))  # Beğeni sayısını hesapla
+        return queryset.prefetch_related('tags', 'media', 'comments', 'likes').annotate(
+            likes_count=Count('likes')
+        )
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        # Medya dosyalarını kontrol et
+        media_files = self.request.FILES.getlist('media', [])
+        if not media_files:
+            raise ValidationError({"media": "At least one media file is required."})
+
+        # Video süre kontrolü
+        for media_file in media_files:
+            if media_file.content_type.startswith('video'):
+                try:
+                    validate_video_duration(media_file)
+                except ValueError as e:
+                    raise ValidationError({"media": str(e)})
+
+        # Post'u kaydet
+        post = serializer.save()
+
+        # Takipçilere bildirim gönder
+        if post.author.profile:
+            followers = Profile.objects.filter(following=post.author.profile)
+            for follower in followers:
+                Notification.objects.create(
+                    user=follower.user,
+                    sender=post.author,
+                    notification_type='post',
+                    post=post
+                )
 
 class PostRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.all()
@@ -43,9 +71,15 @@ class PostLikeToggleView(generics.GenericAPIView):
         else:
             post.likes.add(request.user)
             message = "Like added"
-
-        return Response({"message": message, "likes_count": post.likes.count()}, status=status.HTTP_200_OK)
-
+            # Bildirim oluştur
+            if post.author != request.user:
+                Notification.objects.create(
+                    user=post.author,
+                    sender=request.user,
+                    notification_type='like',
+                    post=post
+                )
+        return Response({"message": message, "likes_count": post.likes.count()}, status=200)
 
 class FollowedUsersPostListView(generics.ListAPIView):
     serializer_class = PostSerializer
