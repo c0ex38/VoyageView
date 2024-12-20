@@ -10,10 +10,17 @@ class ProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ['title', 'author', 'category', 'location', 'created_at', 'updated_at']
-    search_fields = ['title', 'author__username', 'location', 'description']
-    list_filter = ['category', 'created_at']
-    ordering = ['-created_at']
+    list_display = ('id', 'author', 'title', 'location', 'created_at')  # Alanlar burada belirtiliyor
+    search_fields = ('title', 'description', 'location')  # Arama yapılabilir alanlar
+    list_filter = ('category', 'created_at')  # Filtreleme için alanlar
+
+    def author(self, obj):
+        return obj.author.username  # Eğer `author` bir ForeignKey ise username döner
+    author.short_description = 'Author'  # Admin'de başlık
+
+    def location(self, obj):
+        return f"{obj.latitude}, {obj.longitude}"  # Eğer tam nokta istiyorsanız
+    location.short_description = 'Location'  # Admin'de başlık
 
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):

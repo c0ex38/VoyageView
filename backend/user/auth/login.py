@@ -1,27 +1,28 @@
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 from django.contrib.auth import authenticate
-from django.http import JsonResponse
 from rest_framework_simplejwt.tokens import RefreshToken
-import json
 
-def login_user(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
+
+class LoginUserAPIView(APIView):
+
+    def post(self, request, *args, **kwargs):
+        data = request.data
         username = data.get("username")
         password = data.get("password")
 
         if not username or not password:
-            return JsonResponse({"error": "Username and password are required"}, status=400)
+            return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         user = authenticate(username=username, password=password)
         if user:
             # JWT Token oluştur
             refresh = RefreshToken.for_user(user)
-            return JsonResponse({
+            return Response({
                 "message": "Login successful",
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
-            }, status=200)
+            }, status=status.HTTP_200_OK)
         else:
-            return JsonResponse({"error": "Invalid credentials"}, status=400)
-
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)

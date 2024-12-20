@@ -17,32 +17,35 @@ class CommentListCreateView(generics.ListCreateAPIView):
         parent_id = self.request.data.get('parent', None)
         post_id = self.kwargs['post_id']
 
-        if parent_id:
-            # Alt yorum oluşturma
-            parent_comment = Comment.objects.get(id=parent_id)
-            comment = serializer.save(author=self.request.user, post_id=post_id, parent=parent_comment)
+        try:
+            # Alt yorum kontrolü
+            if parent_id:
+                parent_comment = Comment.objects.get(id=parent_id)
+                comment = serializer.save(author=self.request.user, post_id=post_id, parent=parent_comment)
 
-            # Bildirim: Alt yorum için
-            if parent_comment.author != self.request.user:
-                Notification.objects.create(
-                    user=parent_comment.author,  # Parent yorumun sahibi
-                    sender=self.request.user,
-                    notification_type='comment',
-                    comment=comment
-                )
-        else:
-            # Ana yorum oluşturma
-            comment = serializer.save(author=self.request.user, post_id=post_id)
+                # Alt yorum bildirimi
+                if parent_comment.author != self.request.user:
+                    Notification.objects.create(
+                        user=parent_comment.author,
+                        sender=self.request.user,
+                        notification_type='comment',
+                        comment=comment
+                    )
+            else:
+                # Ana yorum oluşturma
+                comment = serializer.save(author=self.request.user, post_id=post_id)
 
-            # Bildirim: Post sahibine
-            post_author = comment.post.author
-            if post_author != self.request.user:
-                Notification.objects.create(
-                    user=post_author,
-                    sender=self.request.user,
-                    notification_type='comment',
-                    post=comment.post
-                )
+                # Post sahibine bildirim
+                post_author = comment.post.author
+                if post_author != self.request.user:
+                    Notification.objects.create(
+                        user=post_author,
+                        sender=self.request.user,
+                        notification_type='comment',
+                        post=comment.post
+                    )
+        except Comment.DoesNotExist:
+            raise serializers.ValidationError({"error": "Parent comment does not exist"})
 
 class CommentDestroyView(generics.DestroyAPIView):
     serializer_class = CommentSerializer
@@ -56,21 +59,31 @@ class CommentLikeToggleView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk, *args, **kwargs):
-        comment = self.get_object()
+        try:
+            comment = self.get_object()
+        except Comment.DoesNotExist:
+            return Response({"error": "Comment does not exist"}, status=status.HTTP_404_NOT_FOUND)
+
         if request.user in comment.likes.all():
+            # Beğeni kaldırma işlemi
             comment.likes.remove(request.user)
             message = "Like removed"
         else:
+            # Beğeni ekleme işlemi
             comment.likes.add(request.user)
             message = "Like added"
 
             # Bildirim: Yorum beğenildiğinde
             if comment.author != request.user:
                 Notification.objects.create(
-                    user=comment.author,
-                    sender=request.user,
-                    notification_type='like',
+                    user=comment.author,  # Yorumun sahibi
+                    sender=request.user,  # Beğeniyi yapan kullanıcı
+                    notification_type='like',  # Bildirim tipi
                     comment=comment
                 )
 
-        return Response({"message": message, "likes_count": comment.likes.count()}, status=status.HTTP_200_OK)
+        # Güncel beğeni sayısını döndür
+        return Response({
+            "message": message,
+            "likes_count": comment.likes.count()
+        }, status=status.HTTP_200_OK)

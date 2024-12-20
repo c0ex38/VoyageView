@@ -71,7 +71,7 @@ class PostLikeToggleView(generics.GenericAPIView):
         else:
             post.likes.add(request.user)
             message = "Like added"
-            # Bildirim oluştur
+            # Beğeni bildirimi
             if post.author != request.user:
                 Notification.objects.create(
                     user=post.author,
@@ -80,13 +80,3 @@ class PostLikeToggleView(generics.GenericAPIView):
                     post=post
                 )
         return Response({"message": message, "likes_count": post.likes.count()}, status=200)
-
-class FollowedUsersPostListView(generics.ListAPIView):
-    serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticated]  # Yetkilendirme zorunlu
-
-    def get_queryset(self):
-        user = self.request.user
-        # Takip edilen kullanıcıların postlarını filtrele
-        followed_users = user.profile.following.all().values_list('user', flat=True)
-        return Post.objects.filter(author__in=followed_users).order_by('-created_at')

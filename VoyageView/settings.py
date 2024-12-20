@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'django_filters',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -81,6 +82,8 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = 'voyageview.asgi.application'
+
 WSGI_APPLICATION = 'VoyageView.wsgi.application'
 
 REST_FRAMEWORK = {
@@ -89,6 +92,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
     ),
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -189,3 +193,11 @@ JAZZMIN_SETTINGS = {
     "order_with_respect_to": ["auth", "backend", "backend.Post", "backend.Comment"],
     "language_chooser": True,
 }
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587  # TLS için doğru port
+EMAIL_USE_TLS = True  # TLS kullanımı açık
+EMAIL_HOST_USER = 'cagriozay13@gmail.com'
+EMAIL_HOST_PASSWORD = 'wndjgpodtsiizwqy'  # Gmail uygulama şifresi kullanmanız önerilir

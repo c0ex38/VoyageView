@@ -1,6 +1,50 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Report, Notification, User, Profile, Comment, Tag, PostMedia, Post
+from backend.models import GroupInvitation, GroupChat, GroupMessage,SharedPost, Message, Report, Notification, User, Profile, Comment, Tag, PostMedia, Post
+
+class GroupInvitationSerializer(serializers.ModelSerializer):
+    invited_user = serializers.StringRelatedField(read_only=True)
+    invited_by = serializers.StringRelatedField(read_only=True)
+    group = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = GroupInvitation
+        fields = ['id', 'group', 'invited_user', 'invited_by', 'created_at', 'is_accepted', 'is_rejected']
+        read_only_fields = ['id', 'group', 'invited_user', 'invited_by', 'created_at']
+
+class GroupChatSerializer(serializers.ModelSerializer):
+    admins = serializers.StringRelatedField(many=True, read_only=True)
+    members = serializers.StringRelatedField(many=True, read_only=True)  # Sadece okunabilir hale getirildi.
+
+    class Meta:
+        model = GroupChat
+        fields = ['id', 'name', 'members', 'admins', 'created_at']
+        read_only_fields = ['id', 'admins', 'members', 'created_at']
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        group = GroupChat.objects.create(**validated_data)
+        group.members.add(user)  # Grup yaratıcısı otomatik üye olur.
+        group.admins.add(user)  # Grup yaratıcısı otomatik yönetici olur.
+        return group
+
+class SharedPostSerializer(serializers.ModelSerializer):
+    post_id = serializers.IntegerField(write_only=True, required=True)
+    recipient_id = serializers.IntegerField(write_only=True, required=True)
+    
+    class Meta:
+        model = SharedPost
+        fields = ['id', 'post_id', 'recipient_id', 'sender', 'post', 'recipient', 'message', 'created_at']
+        read_only_fields = ['id', 'sender', 'post', 'recipient', 'created_at']
+
+class MessageSerializer(serializers.ModelSerializer):
+    recipient = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    attachment = serializers.FileField(required=False)
+
+    class Meta:
+        model = Message
+        fields = ['id', 'sender', 'recipient', 'content', 'created_at', 'is_read']
+        read_only_fields = ['id', 'sender', 'created_at', 'is_read']
 
 class ReportSerializer(serializers.ModelSerializer):
     class Meta:
@@ -133,11 +177,13 @@ class PostSerializer(serializers.ModelSerializer):
     likes_count = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     liked_by = UserSerializer(source='likes', many=True, read_only=True)
+    latitude = serializers.FloatField(required=True)
+    longitude = serializers.FloatField(required=True)
 
     class Meta:
         model = Post
         fields = [
-            'id', 'title', 'description', 'category', 'location', 'author',
+            'id', 'title', 'description', 'category', 'location_name', 'latitude', 'longitude','author',
             'tags', 'tags_info', 'media', 'comments', 'likes_count', 'is_liked', 'liked_by',
             'created_at', 'updated_at'
         ]
