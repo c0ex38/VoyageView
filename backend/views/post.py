@@ -13,7 +13,7 @@ class PostListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category']
-    search_fields = ['title', 'description', 'location', 'tags__name']  # tags ekledik
+    search_fields = ['title', 'description', 'location', 'tags__name']
     ordering_fields = ['likes_count', 'created_at']
     ordering = ['-created_at']
 

@@ -4,9 +4,10 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from backend.user.auth.register import RegisterUserAPIView
-from backend.user.auth.verified_email import VerifyEmailAPIView
+from backend.user.auth.verified_email import VerifyEmailAPIView, GetUserIdAPIView
 from backend.user.auth.resend_email import ResendVerificationCodeAPIView
 from backend.user.auth.login import LoginUserAPIView
+from backend.user.auth.check_user_status import CheckUserStatusAPIView
 from backend.views.profile import ProfileDetailView
 from backend.views.post import PostListCreateView, PostRetrieveUpdateDestroyView, PostLikeToggleView
 from backend.views.follow import FollowedUsersPostListView
@@ -26,6 +27,8 @@ urlpatterns = [
     path('login/', LoginUserAPIView.as_view(), name='login'),
     path('verify-email/', VerifyEmailAPIView.as_view(), name='verify-email'),
     path('resend-verification-code/', ResendVerificationCodeAPIView.as_view(), name='resend-verification-code'),
+    path('get-user-id/', GetUserIdAPIView.as_view(), name='get-user-id'),
+    path('check-user-status/', CheckUserStatusAPIView.as_view(), name='check-user-status'),
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('profile/', ProfileDetailView.as_view(), name='profile-detail'),

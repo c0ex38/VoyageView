@@ -44,11 +44,13 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'django_filters',
     'channels',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -201,3 +203,10 @@ EMAIL_PORT = 587  # TLS için doğru port
 EMAIL_USE_TLS = True  # TLS kullanımı açık
 EMAIL_HOST_USER = 'cagriozay13@gmail.com'
 EMAIL_HOST_PASSWORD = 'wndjgpodtsiizwqy'  # Gmail uygulama şifresi kullanmanız önerilir
+
+
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',  # React URL'si
+]
+
+CORS_ALLOW_ALL_ORIGINS = True
