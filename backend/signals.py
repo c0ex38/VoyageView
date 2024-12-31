@@ -10,26 +10,36 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
-    instance.profile.save()
+    if instance.profile and (instance.profile.bio != instance.profile.bio or instance.profile.location != instance.profile.location):
+        instance.profile.save()
 
 @receiver(post_save, sender=Post)
 def add_points_for_post(sender, instance, created, **kwargs):
     if created:
         profile = instance.author.profile
         profile.points += 10  # Post başına 10 puan
-        profile.update_level()
+        profile.save()  # Yalnızca puan değiştikten sonra kaydediyoruz
 
 @receiver(post_save, sender=Comment)
 def add_points_for_comment(sender, instance, created, **kwargs):
     if created:
         profile = instance.author.profile
         profile.points += 5  # Yorum başına 5 puan
-        profile.update_level()
+        profile.save()  # Yalnızca puan değiştikten sonra kaydediyoruz
 
 @receiver(post_save, sender=Profile)
 def assign_badges(sender, instance, **kwargs):
     """Kullanıcı seviyesi rozet gerekliliğini karşıladığında rozet ekler."""
-    available_badges = Badge.objects.filter(level_requirement__lte=instance.level)
-    for badge in available_badges:
-        if badge not in instance.badges.all():
-            instance.badges.add(badge)
+    previous_level = instance.level
+    instance.refresh_from_db()  # Veritabanından en güncel verileri al
+
+    # Seviyede değişiklik varsa sadece yeni seviyeye uygun rozetleri kontrol et
+    if instance.level != previous_level:
+        # Eski seviyeye ait rozetleri kaldırabiliriz (isteğe bağlı)
+        instance.badges.clear()
+
+        # Yeni seviyeye uygun rozetleri al
+        available_badges = Badge.objects.filter(level_requirement__lte=instance.level)
+        for badge in available_badges:
+            if badge not in instance.badges.all():
+                instance.badges.add(badge)

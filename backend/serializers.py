@@ -1,10 +1,15 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from backend.models import GroupInvitation, GroupChat, GroupMessage,SharedPost, Message, Report, Notification, User, Profile, Comment, Tag, PostMedia, Post
+from backend.models import Follow, GroupInvitation, GroupChat, GroupMessage,SharedPost, Message, Report, Notification, User, Profile, Comment, Tag, PostMedia, Post
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']
 
 class GroupInvitationSerializer(serializers.ModelSerializer):
-    invited_user = serializers.StringRelatedField(read_only=True)
-    invited_by = serializers.StringRelatedField(read_only=True)
+    invited_user = UserSerializer(read_only=True)
+    invited_by = UserSerializer(read_only=True)
     group = serializers.StringRelatedField(read_only=True)
 
     class Meta:
@@ -13,8 +18,8 @@ class GroupInvitationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'group', 'invited_user', 'invited_by', 'created_at']
 
 class GroupChatSerializer(serializers.ModelSerializer):
-    admins = serializers.StringRelatedField(many=True, read_only=True)
-    members = serializers.StringRelatedField(many=True, read_only=True)  # Sadece okunabilir hale getirildi.
+    admins = UserSerializer(many=True, read_only=True)
+    members = UserSerializer(many=True, read_only=True)
 
     class Meta:
         model = GroupChat
@@ -31,11 +36,13 @@ class GroupChatSerializer(serializers.ModelSerializer):
 class SharedPostSerializer(serializers.ModelSerializer):
     post_id = serializers.IntegerField(write_only=True, required=True)
     recipient_id = serializers.IntegerField(write_only=True, required=True)
-    
+    post_title = serializers.CharField(source='post.title', read_only=True)
+    recipient_username = serializers.CharField(source='recipient.username', read_only=True)
+
     class Meta:
         model = SharedPost
-        fields = ['id', 'post_id', 'recipient_id', 'sender', 'post', 'recipient', 'message', 'created_at']
-        read_only_fields = ['id', 'sender', 'post', 'recipient', 'created_at']
+        fields = ['id', 'post_id', 'recipient_id', 'sender', 'post_title', 'recipient_username', 'message', 'created_at']
+        read_only_fields = ['id', 'sender', 'post_title', 'recipient_username', 'created_at']
 
 class MessageSerializer(serializers.ModelSerializer):
     recipient = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
@@ -43,8 +50,15 @@ class MessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ['id', 'sender', 'recipient', 'content', 'created_at', 'is_read']
+        fields = ['id', 'sender', 'recipient', 'content', 'created_at', 'is_read', 'attachment']
         read_only_fields = ['id', 'sender', 'created_at', 'is_read']
+
+    def validate_attachment(self, value):
+        """Dosya türünü kontrol et"""
+        if value:
+            if not value.name.endswith(('.jpg', '.jpeg', '.png', '.mp4')):
+                raise serializers.ValidationError("Invalid file type")
+        return value
 
 class ReportSerializer(serializers.ModelSerializer):
     class Meta:
@@ -61,10 +75,12 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ['id', 'notification_type', 'sender', 'post', 'comment', 'is_read', 'created_at']
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'username']
+    def get_notification_details(self, obj):
+        if obj.notification_type == 'like':
+            return {"liked_post": obj.post.title}
+        elif obj.notification_type == 'comment':
+            return {"commented_post": obj.post.title}
+        return {}
 
 class ProfileSerializer(serializers.ModelSerializer):
     profile_image = serializers.ImageField(required=False)
@@ -104,30 +120,20 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def get_level_badge(self, obj):
         """Kullanıcı seviyesine göre rozet döner."""
-        if obj.level >= 10:
-            return {
-                "badge": "gold",
-                "message": "Gold Badge - Influencer",
-                "icon": "https://example.com/badges/gold.png"
-            }
-        elif obj.level >= 5:
-            return {
-                "badge": "silver",
-                "message": "Silver Badge - Active User",
-                "icon": "https://example.com/badges/silver.png"
-            }
-        elif obj.level >= 3:
-            return {
-                "badge": "bronze",
-                "message": "Bronze Badge - Intermediate User",
-                "icon": "https://example.com/badges/bronze.png"
-            }
+        if obj.level >= 500:
+            return {"badge": "gold", "message": "Gold Badge - Influencer", "icon": "path_to_gold_icon.png"}
+        elif obj.level >= 100:
+            return {"badge": "silver", "message": "Silver Badge - Active User", "icon": "path_to_silver_icon.png"}
+        elif obj.level >= 50:
+            return {"badge": "bronze", "message": "Bronze Badge - Intermediate User", "icon": "path_to_bronze_icon.png"}
         else:
-            return {
-                "badge": "new",
-                "message": "Welcome Badge - New User",
-                "icon": "https://example.com/badges/new.png"
-            }
+            return {"badge": "new", "message": "Welcome Badge - New User", "icon": "path_to_default_icon.png"}
+
+    def get_profile_image(self, obj):
+        """Profil resminin URL'sini döndürür, yoksa default resim döner."""
+        if obj.profile_image:
+            return obj.profile_image.url
+        return "https://example.com/default_profile_image.png"
 
 class CommentSerializer(serializers.ModelSerializer):
     author = serializers.StringRelatedField(read_only=True)
@@ -139,7 +145,7 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ['id', 'post', 'author', 'content', 'parent', 'likes_count', 'is_liked', 'liked_by', 'replies', 'created_at']
-        read_only_fields = ['id', 'author', 'created_at']
+        read_only_fields = ['id', 'author', 'created_at', 'post']
 
     def get_replies(self, obj):
         if obj.replies.exists():
@@ -156,9 +162,11 @@ class CommentSerializer(serializers.ModelSerializer):
         return False
 
 class TagSerializer(serializers.ModelSerializer):
+    category = serializers.CharField(source='category.name', read_only=True)
+
     class Meta:
         model = Tag
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'category']
 
 class PostMediaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -183,7 +191,7 @@ class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = [
-            'id', 'title', 'description', 'category', 'location_name', 'latitude', 'longitude','author',
+            'id', 'title', 'description', 'category', 'location_name', 'latitude', 'longitude', 'author',
             'tags', 'tags_info', 'media', 'comments', 'likes_count', 'is_liked', 'liked_by',
             'created_at', 'updated_at'
         ]
@@ -212,25 +220,21 @@ class PostSerializer(serializers.ModelSerializer):
         validated_data['author'] = self.context['request'].user
         post = Post.objects.create(**validated_data)
         
-        # Her tag'i ayrı ayrı işle
-        for tag_name in tags_data:
-            # Strip kullanarak baştaki ve sondaki boşlukları temizle
-            tag_name = tag_name.strip()
-            # Köşeli parantezleri ve diğer işaretleri temizle
-            tag_name = tag_name.strip('[]"\'')
-            if tag_name:  # Boş string değilse
-                tag, _ = Tag.objects.get_or_create(name=tag_name)
-                post.tags.add(tag)
+        # Etiketleri işlemeye başla
+        if tags_data:
+            tags = [Tag.objects.get_or_create(name=tag.strip())[0] for tag in tags_data if tag.strip()]
+            post.tags.add(*tags)
         
         # Medyaları ekle
+        media_objects = []
         for media_file in media_data:
             media_type = 'video' if 'video' in media_file.content_type else 'image'
-            PostMedia.objects.create(
-                post=post,
-                file=media_file,
-                media_type=media_type
-            )
+            media_objects.append(PostMedia(post=post, file=media_file, media_type=media_type))
         
+        # Bulk create medya dosyalarını ekle
+        if media_objects:
+            PostMedia.objects.bulk_create(media_objects)
+
         return post
 
     def update(self, instance, validated_data):
@@ -245,22 +249,17 @@ class PostSerializer(serializers.ModelSerializer):
         # Etiketleri güncelle
         if tags_data is not None:
             instance.tags.clear()
-            for tag_name in tags_data:
-                tag_name = tag_name.strip()
-                tag_name = tag_name.strip('[]"\'')
-                if tag_name:
-                    tag, _ = Tag.objects.get_or_create(name=tag_name)
-                    instance.tags.add(tag)
+            tags = [Tag.objects.get_or_create(name=tag.strip())[0] for tag in tags_data if tag.strip()]
+            instance.tags.add(*tags)
         
         # Medyaları güncelle
         if media_data:
             instance.media.all().delete()  # Eski medyaları sil
-            for media_file in media_data:
-                media_type = 'video' if 'video' in media_file.content_type else 'image'
-                PostMedia.objects.create(
-                    post=instance,
-                    file=media_file,
-                    media_type=media_type
-                )
+            media_objects = [
+                PostMedia(post=instance, file=media_file, media_type='video' if 'video' in media_file.content_type else 'image')
+                for media_file in media_data
+            ]
+            # Bulk create medya dosyalarını ekle
+            PostMedia.objects.bulk_create(media_objects)
         
         return instance

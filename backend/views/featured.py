@@ -10,14 +10,24 @@ from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
 class FeaturedPostsView(ListAPIView):
+    """
+    Öne çıkan postları listeler.
+    - Kullanıcılar kategorilerine göre filtreleyebilirler.
+    - Beğeni, yorum sayısı gibi verilere göre sıralama yapılabilir.
+    """
     serializer_class = PostSerializer
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]  # Filtreleme ve sıralama işlevselliği ekleniyor
     filterset_fields = ['category']  # Kategoriye göre filtreleme
     ordering_fields = ['total_likes', 'comment_count', 'created_at']  # Sıralama alanları
-    ordering = ['-created_at']  # Varsayılan sıralama
+    ordering = ['-created_at']  # Varsayılan sıralama: en son oluşturulanlar
 
     def get_queryset(self):
-        time_period = self.request.query_params.get('time_period', 'week')
+        """
+        Postların sorgusunu yapar.
+        - Zaman dilimine göre filtreleme yapılır (hafta, ay).
+        - Beğeni ve yorum sayısını anotasyon ile ekler.
+        """
+        time_period = self.request.query_params.get('time_period', 'week')  # Varsayılan zaman dilimi: hafta
         if time_period == 'week':
             start_date = now() - timedelta(days=7)
         elif time_period == 'month':
@@ -36,38 +46,60 @@ class FeaturedPostsView(ListAPIView):
         )
         return queryset
 
-
-
-# Personalized Feed View
 class PersonalizedFeedView(generics.ListAPIView):
+    """
+    Kullanıcıya özel beslemeyi döndürür.
+    - Kullanıcıların daha önce etkileşimde bulundukları kategorilerdeki postlar listelenir.
+    """
     serializer_class = PostSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]  # Sadece giriş yapmış kullanıcılar erişebilir
 
     def get_queryset(self):
+        """
+        Kullanıcı etkileşimlerine dayalı olarak, ilgili kategorilerdeki postları döndürür.
+        """
         user = self.request.user
-        interactions = user.userinteraction_set.values_list('post__category', flat=True).distinct()
-        return Post.objects.filter(category__in=interactions).order_by('-created_at')
+        interactions = user.userinteraction_set.values_list('post__category', flat=True).distinct()  # Kullanıcının etkileşimde bulunduğu kategoriler
+        return Post.objects.filter(category__in=interactions).order_by('-created_at')  # Bu kategorilerdeki postları döndürür
 
-# Trending Posts View
 class TrendingPostsView(generics.ListAPIView):
+    """
+    Popüler (beğenilen) postları listeler.
+    - Beğeni sayısına göre sıralanır.
+    """
     serializer_class = PostSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # Herkesin erişebileceği bir API
 
     def get_queryset(self):
-        return Post.objects.annotate(like_count=Count('likes')).order_by('-like_count')[:10]
+        """
+        Beğeni sayısına göre sıralanan en popüler 10 postu döndürür.
+        """
+        return Post.objects.annotate(like_count=Count('likes')).order_by('-like_count')[:10]  # En fazla beğeniye sahip 10 postu döndürür
 
-# Most Commented Posts View
 class MostCommentedPostsView(generics.ListAPIView):
+    """
+    En çok yorumlanan postları listeler.
+    - Yorum sayısına göre sıralanır.
+    """
     serializer_class = PostSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # Herkesin erişebileceği bir API
 
     def get_queryset(self):
-        return Post.objects.annotate(comment_count=Count('comments')).order_by('-comment_count')[:10]
+        """
+        Yorum sayısına göre sıralanan en çok yorumlanan 10 postu döndürür.
+        """
+        return Post.objects.annotate(comment_count=Count('comments')).order_by('-comment_count')[:10]  # En çok yorum alan 10 postu döndürür
 
-# Recent Posts View
 class RecentPostsView(generics.ListAPIView):
+    """
+    En son paylaşılan postları listeler.
+    - En yeni paylaşılan postlar sıralanır.
+    """
     serializer_class = PostSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # Herkesin erişebileceği bir API
 
     def get_queryset(self):
-        return Post.objects.order_by('-created_at')[:10]
+        """
+        En son paylaşılan 10 postu döndürür.
+        """
+        return Post.objects.order_by('-created_at')[:10]  # En yeni 10 postu döndürür

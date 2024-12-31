@@ -6,6 +6,17 @@ from django.utils.timezone import now
 import tempfile
 import cv2
 
+class Follow(models.Model):
+    user = models.ForeignKey(User, related_name='followers', on_delete=models.CASCADE)
+    followed_user = models.ForeignKey(User, related_name='following', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'followed_user')  # Aynı kullanıcının aynı kişiyi takip etmesine izin verilmez
+
+    def __str__(self):
+        return f"{self.user.username} follows {self.followed_user.username}"
+
 class SharedPost(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_posts")
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="received_posts")
@@ -29,6 +40,10 @@ class GroupInvitation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_accepted = models.BooleanField(default=False)
     is_rejected = models.BooleanField(default=False)
+    
+    def clean(self):
+        if self.is_accepted and self.is_rejected:
+            raise ValidationError("A group invitation cannot be both accepted and rejected at the same time.")
 
     def __str__(self):
         return f"Invitation to {self.invited_user} for {self.group}"
@@ -47,14 +62,10 @@ class Message(models.Model):
     is_read = models.BooleanField(default=False)
     is_archived = models.BooleanField(default=False)
     attachment = models.FileField(upload_to='message_attachments/', null=True, blank=True)
-
+    
     def __str__(self):
-        return f"Message from {self.sender} to {self.recipient}"
-
-
-    def __str__(self):
-        return f"Message from {self.sender} to {self.recipient} at {self.timestamp}"
-        
+        return f"Message from {self.sender} to {self.recipient} at {self.created_at}"
+  
 class EmailVerification(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     verification_code = models.CharField(max_length=6)
@@ -87,6 +98,10 @@ class Report(models.Model):
     post = models.ForeignKey('Post', on_delete=models.CASCADE, null=True, blank=True)
     comment = models.ForeignKey('Comment', on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        if not self.post and not self.comment:
+            raise ValidationError("A report must be associated with either a post or a comment.")
 
     def __str__(self):
         return f"{self.report_type.capitalize()} Report by {self.user.username}"
@@ -126,9 +141,10 @@ class Profile(models.Model):
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES, blank=True, null=True)
     social_link = models.URLField(max_length=200, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    followers = models.ManyToManyField('self', related_name='following', symmetrical=False, blank=True)
-    level = models.PositiveIntegerField(default=1)
-    points = models.PositiveIntegerField(default=0)
+    followers = models.ManyToManyField(User, related_name='following_profiles', blank=True)
+    following = models.ManyToManyField(User, related_name='follower_profiles', blank=True)
+    level = models.PositiveIntegerField(default=1, db_index=True)
+    points = models.PositiveIntegerField(default=0, db_index=True)
     badges = models.ManyToManyField(Badge, related_name="users", blank=True)
 
     def __str__(self):
@@ -136,8 +152,10 @@ class Profile(models.Model):
 
     def update_level(self):
         """Kullanıcının seviyesini günceller."""
-        self.level = (self.points // 100) + 1  # 100 puan = 1 seviye
-        self.save()
+        new_level = (self.points // 100) + 1  # 100 puan = 1 seviye
+        if self.level != new_level:
+            self.level = new_level
+            self.save()  # Seviyeyi sadece değiştiğinde kaydediyoruz
 
 class Tag(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -172,6 +190,26 @@ class Post(models.Model):
     CATEGORY_CHOICES = [
         ('cultural', 'Cultural Place'),
         ('touristic', 'Touristic Place'),
+        ('technology', 'Technology'),
+        ('sports', 'Sports'),
+        ('art', 'Art'),
+        ('nature', 'Nature'),
+        ('historical', 'Historical Sites'),
+        ('educational', 'Educational Institutions'),
+        ('entertainment', 'Entertainment'),
+        ('music', 'Music'),
+        ('food', 'Food & Drink'),
+        ('adventure', 'Adventure'),
+        ('wellness', 'Wellness'),
+        ('shopping', 'Shopping'),
+        ('business', 'Business'),
+        ('lifestyle', 'Lifestyle'),
+        ('festival', 'Festival'),
+        ('nightlife', 'Nightlife'),
+        ('outdoor', 'Outdoor Activities'),
+        ('religious', 'Religious Sites'),
+        ('romantic', 'Romantic Getaways'),
+        ('family', 'Family Activities'),
     ]
 
     title = models.CharField(max_length=255)
@@ -203,6 +241,10 @@ class PostMedia(models.Model):
     media_type = models.CharField(max_length=10, choices=MEDIA_TYPE_CHOICES)
     file = models.FileField(upload_to='post_media/')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        if self.media_type == 'video':
+            validate_video_duration(self.file)
 
     def __str__(self):
         return f"{self.media_type} for Post {self.post.title}"
