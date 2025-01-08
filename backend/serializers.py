@@ -1,6 +1,18 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from backend.models import Follow, GroupInvitation, GroupChat, GroupMessage,SharedPost, Message, Report, Notification, User, Profile, Comment, Tag, PostMedia, Post
+from backend.models.follow import Follow
+from backend.models.group_invitation import GroupInvitation
+from backend.models.group_chat import GroupChat
+from backend.models.group_message import GroupMessage
+from backend.models.interaction import SharedPost
+from backend.models.message import Message
+from backend.models.report import Report
+from backend.models.notification import Notification
+from backend.models.profile import Profile
+from backend.models.comment import Comment
+from backend.models.tag import Tag
+from backend.models.post import Post
+from backend.models.media import PostMedia
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,7 +50,7 @@ class SharedPostSerializer(serializers.ModelSerializer):
     recipient_id = serializers.IntegerField(write_only=True, required=True)
     post_title = serializers.CharField(source='post.title', read_only=True)
     recipient_username = serializers.CharField(source='recipient.username', read_only=True)
-
+    
     class Meta:
         model = SharedPost
         fields = ['id', 'post_id', 'recipient_id', 'sender', 'post_title', 'recipient_username', 'message', 'created_at']
@@ -63,8 +75,14 @@ class MessageSerializer(serializers.ModelSerializer):
 class ReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Report
-        fields = ['id', 'user', 'report_type', 'reason', 'post', 'comment', 'created_at']
-        read_only_fields = ['id', 'user', 'created_at']
+        fields = ['id', 'user', 'report_type', 'reason', 'post', 'comment', 'status', 'detailed_description', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        # Eğer rapor sebebi 'harassment' veya benzeri bir türse, ek açıklama gereklidir.
+        if 'reason' in attrs and attrs['reason'] == 'harassment' and not attrs.get('detailed_description'):
+            raise serializers.ValidationError("A detailed description is required for harassment reports.")
+        return attrs
         
 class NotificationSerializer(serializers.ModelSerializer):
     sender = serializers.StringRelatedField()  # Gönderen kullanıcı adını döner
